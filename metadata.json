@@ -1,0 +1,7 @@
+{
+  "name": "Aesthetica AI - Tư vấn Thẩm mỹ",
+  "description": "Ứng dụng hỗ trợ tư vấn kích thước vòng 1 dựa trên phân tích hình ảnh và chỉ số cơ thể sử dụng AI.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
