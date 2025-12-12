@@ -124,11 +124,23 @@ export const generateSimulationImage = async (
   targetCup: string,
   imageBase64: string,
   mimeType: string,
-  style: 'realistic' | '3d-mesh' = 'realistic'
+  style: 'realistic' | '3d-mesh' = 'realistic',
+  angle: 'front' | 'side-left' | 'side-right' = 'front'
 ): Promise<string> => {
   try {
     let styleInstructions = "";
+    let angleInstructions = "";
+
+    // Define Angle Instructions
+    if (angle === 'front') {
+      angleInstructions = "View: Frontal view (keep original angle).";
+    } else if (angle === 'side-left') {
+      angleInstructions = "View: Left Profile View (Side view facing left). GENERATE a side profile view based on the body type seen in the reference image. Focus on the projection and upper pole fullness.";
+    } else if (angle === 'side-right') {
+      angleInstructions = "View: Right Profile View (Side view facing right). GENERATE a side profile view based on the body type seen in the reference image. Focus on the projection and upper pole fullness.";
+    }
     
+    // Define Style Instructions
     if (style === '3d-mesh') {
       styleInstructions = `
         Style: Advanced Medical Augmented Reality (AR) Visualization.
@@ -142,17 +154,18 @@ export const generateSimulationImage = async (
       styleInstructions = `
         Style: ${metrics.desiredLook}, Photorealistic.
         Requirements:
-        - Keep face, hair, and background exactly the same.
-        - Maintain natural anatomy and skin tone.
-        - Ensure the new volume fits the body frame.
+        - Maintain natural anatomy and skin tone from the reference image.
+        - Ensure the new volume (${targetVolume}cc) fits the body frame.
+        - Show realistic projection and cleavage.
       `;
     }
 
     const prompt = `
-      Edit this image to simulate breast augmentation results.
-      Goal: Increase breast volume to approximately ${targetVolume}cc.
+      Generate a medical simulation image for breast augmentation.
+      Target Volume: approximately ${targetVolume}cc.
+      ${angleInstructions}
       ${styleInstructions}
-      - Return only the modified image.
+      - Return only the generated/modified image.
     `;
 
     const response = await ai.models.generateContent({

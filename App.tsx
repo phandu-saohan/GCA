@@ -6,14 +6,26 @@ import { PatientMetrics, AnalysisResult, ProcessingState, VolumeOption } from '.
 import { analyzePatient, generateSimulationImage } from './services/geminiService';
 
 // Define simulation state structure
+// Now supports angles for both realistic and 3d-mesh
+type SimulationAngles = {
+  front: string | null;
+  'side-left': string | null;
+  'side-right': string | null;
+}
+
 type SimulationData = {
-  realistic: string | null;
-  '3d-mesh': string | null;
+  realistic: SimulationAngles;
+  '3d-mesh': SimulationAngles;
 };
 
 type SimulationsState = {
   option1: SimulationData;
   option2: SimulationData;
+};
+
+const initialSimulationData: SimulationData = {
+  realistic: { front: null, 'side-left': null, 'side-right': null },
+  '3d-mesh': { front: null, 'side-left': null, 'side-right': null }
 };
 
 const App: React.FC = () => {
@@ -31,8 +43,8 @@ const App: React.FC = () => {
   const [currentImageMime, setCurrentImageMime] = useState<string>('');
   
   const [simulations, setSimulations] = useState<SimulationsState>({
-    option1: { realistic: null, '3d-mesh': null },
-    option2: { realistic: null, '3d-mesh': null },
+    option1: JSON.parse(JSON.stringify(initialSimulationData)),
+    option2: JSON.parse(JSON.stringify(initialSimulationData)),
   });
   
   const [isGeneratingSimulation, setIsGeneratingSimulation] = useState(false);
@@ -87,8 +99,8 @@ const App: React.FC = () => {
     setAnalysisResult(null);
     // Reset simulations on new analysis
     setSimulations({
-      option1: { realistic: null, '3d-mesh': null },
-      option2: { realistic: null, '3d-mesh': null },
+      option1: JSON.parse(JSON.stringify(initialSimulationData)),
+      option2: JSON.parse(JSON.stringify(initialSimulationData)),
     });
 
     try {
@@ -122,7 +134,8 @@ const App: React.FC = () => {
   const handleGenerateSimulation = async (
     optionKey: 'option1' | 'option2',
     selectedOption: VolumeOption, 
-    style: 'realistic' | '3d-mesh' = 'realistic'
+    style: 'realistic' | '3d-mesh' = 'realistic',
+    angle: 'front' | 'side-left' | 'side-right' = 'front'
   ) => {
     if (!analysisResult || !currentMetrics || !currentImageBase64) return;
 
@@ -133,7 +146,10 @@ const App: React.FC = () => {
       ...prev,
       [optionKey]: {
         ...prev[optionKey],
-        [style]: null
+        [style]: {
+           ...prev[optionKey][style],
+           [angle]: null
+        }
       }
     }));
     
@@ -144,14 +160,18 @@ const App: React.FC = () => {
         selectedOption.cupSize,
         currentImageBase64,
         currentImageMime,
-        style
+        style,
+        angle
       );
       
       setSimulations(prev => ({
         ...prev,
         [optionKey]: {
           ...prev[optionKey],
-          [style]: simulatedImageBase64
+          [style]: {
+            ...prev[optionKey][style],
+            [angle]: simulatedImageBase64
+          }
         }
       }));
 
@@ -166,8 +186,8 @@ const App: React.FC = () => {
   const resetApp = () => {
     setAnalysisResult(null);
     setSimulations({
-      option1: { realistic: null, '3d-mesh': null },
-      option2: { realistic: null, '3d-mesh': null },
+      option1: JSON.parse(JSON.stringify(initialSimulationData)),
+      option2: JSON.parse(JSON.stringify(initialSimulationData)),
     });
     setProcessingState({ isLoading: false, error: null, stage: 'idle' });
   };
