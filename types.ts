@@ -1,3 +1,4 @@
+
 export interface PatientMetrics {
   height: number; // cm
   weight: number; // kg
@@ -31,4 +32,32 @@ export interface ProcessingState {
   isLoading: boolean;
   error: string | null;
   stage: 'idle' | 'analyzing' | 'complete';
+}
+
+export interface Doctor {
+  id: string;
+  name: string;
+  title: string;
+  experience: string;
+  hospital: string;
+  avatar: string;
+  rating: number;
+}
+
+export interface Clinic {
+  id: string;
+  name: string;
+  address: string;
+  image: string;
+  rating: number;
+  features: string[];
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  description: string;
+  image: string;
+  features: string[];
+  type: 'Round' | 'Anatomical';
 }

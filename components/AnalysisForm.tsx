@@ -53,7 +53,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
                   max="200"
                   value={metrics.height}
                   onChange={(e) => setMetrics({ ...metrics, height: Number(e.target.value) })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:outline-none font-semibold"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:ring-2 focus:ring-orange-500 focus:outline-none font-semibold"
                 />
               </div>
             </div>
@@ -66,7 +66,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
                   max="120"
                   value={metrics.weight}
                   onChange={(e) => setMetrics({ ...metrics, weight: Number(e.target.value) })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:outline-none font-semibold"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:ring-2 focus:ring-orange-500 focus:outline-none font-semibold"
                 />
               </div>
             </div>
@@ -78,7 +78,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
                 max="70"
                 value={metrics.age}
                 onChange={(e) => setMetrics({ ...metrics, age: Number(e.target.value) })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:outline-none font-semibold"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:ring-2 focus:ring-orange-500 focus:outline-none font-semibold"
               />
             </div>
           </div>
@@ -91,7 +91,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
                 <button 
                   type="button"
                   onClick={() => setShowGuide(true)}
-                  className="text-xs text-teal-600 font-bold hover:text-teal-700 flex items-center gap-1 bg-teal-50 px-2 py-1 rounded-md transition-colors"
+                  className="text-xs text-orange-600 font-bold hover:text-orange-700 flex items-center gap-1 bg-orange-50 px-2 py-1 rounded-md transition-colors"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM8.94 6.94a.75.75 0 11-1.061-1.061 3 3 0 112.871 5.026v.345a.75.75 0 01-1.5 0v-.5c0-.72.57-1.172 1.081-1.287A1.5 1.5 0 108.94 6.94zM10 15a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
@@ -107,7 +107,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
                   step="0.5"
                   value={metrics.breastWidth}
                   onChange={(e) => setMetrics({ ...metrics, breastWidth: Number(e.target.value) })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:outline-none font-semibold"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:ring-2 focus:ring-orange-500 focus:outline-none font-semibold"
                   placeholder="VD: 11.5"
                 />
               </div>
@@ -119,7 +119,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
               <select
                 value={metrics.currentSize}
                 onChange={(e) => setMetrics({ ...metrics, currentSize: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:outline-none font-semibold appearance-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:ring-2 focus:ring-orange-500 focus:outline-none font-semibold appearance-none"
               >
                 <option>Phẳng / Lép</option>
                 <option>Cup A (Nhỏ)</option>
@@ -142,7 +142,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
                   onClick={() => setMetrics({ ...metrics, desiredLook: look })}
                   className={`p-3 rounded-xl text-sm font-medium transition-all border ${
                     metrics.desiredLook === look
-                      ? 'bg-teal-50 border-teal-500 text-teal-700 ring-1 ring-teal-500'
+                      ? 'bg-orange-50 border-orange-500 text-orange-700 ring-1 ring-orange-500'
                       : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
@@ -158,7 +158,7 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
             <div 
               onClick={() => fileInputRef.current?.click()}
               className={`relative border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-colors ${
-                previewUrl ? 'border-teal-400 bg-teal-50' : 'border-slate-300 hover:border-teal-400 hover:bg-slate-50'
+                previewUrl ? 'border-orange-400 bg-orange-50' : 'border-slate-300 hover:border-orange-400 hover:bg-slate-50'
               }`}
             >
               <input
@@ -194,10 +194,10 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
           <button
             type="submit"
             disabled={!selectedFile || isLoading}
-            className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg shadow-teal-500/30 transition-all transform active:scale-95 ${
+            className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg shadow-orange-500/30 transition-all transform active:scale-95 ${
               !selectedFile || isLoading
                 ? 'bg-slate-300 cursor-not-allowed shadow-none'
-                : 'bg-teal-600 hover:bg-teal-500'
+                : 'bg-orange-600 hover:bg-orange-500'
             }`}
           >
             {isLoading ? (
@@ -239,18 +239,18 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
                   {/* Breast outline */}
                   <path d="M60 110 C 60 60, 140 60, 140 110" stroke="#94a3b8" strokeWidth="2" strokeDasharray="4 4"/>
                   {/* Measurement line */}
-                  <path d="M60 100 L 140 100" stroke="#0d9488" strokeWidth="3" markerEnd="url(#arrowhead)" markerStart="url(#arrowhead)"/>
-                  <path d="M60 105 L 60 95" stroke="#0d9488" strokeWidth="2"/>
-                  <path d="M140 105 L 140 95" stroke="#0d9488" strokeWidth="2"/>
+                  <path d="M60 100 L 140 100" stroke="#ea580c" strokeWidth="3" markerEnd="url(#arrowhead)" markerStart="url(#arrowhead)"/>
+                  <path d="M60 105 L 60 95" stroke="#ea580c" strokeWidth="2"/>
+                  <path d="M140 105 L 140 95" stroke="#ea580c" strokeWidth="2"/>
                   {/* Text */}
-                  <text x="100" y="85" textAnchor="middle" fill="#0f766e" fontSize="14" fontWeight="bold">BW</text>
+                  <text x="100" y="85" textAnchor="middle" fill="#c2410c" fontSize="14" fontWeight="bold">BW</text>
                   <text x="100" y="115" textAnchor="middle" fill="#64748b" fontSize="10">Chân ngực</text>
                 </svg>
               </div>
 
-              <div className="bg-teal-50 rounded-lg p-3 border border-teal-100">
-                 <h4 className="font-semibold text-teal-800 mb-1">Các bước đo:</h4>
-                 <ul className="list-decimal pl-5 space-y-1 text-teal-700">
+              <div className="bg-orange-50 rounded-lg p-3 border border-orange-100">
+                 <h4 className="font-semibold text-orange-800 mb-1">Các bước đo:</h4>
+                 <ul className="list-decimal pl-5 space-y-1 text-orange-700">
                     <li>Đứng thẳng, thả lỏng cơ thể.</li>
                     <li>Dùng thước đo khoảng cách ngang chân ngực.</li>
                     <li>Điểm đầu: Chân ngực trong (cạnh xương ức).</li>

@@ -18,6 +18,7 @@ interface ResultDisplayProps {
   };
   originalImage: string | null;
   originalImageMime: string;
+  onShowRecommendations: (volume: number) => void;
 }
 
 export const ResultDisplay: React.FC<ResultDisplayProps> = ({ 
@@ -27,7 +28,8 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
   isGeneratingSimulation,
   simulations,
   originalImage,
-  originalImageMime
+  originalImageMime,
+  onShowRecommendations
 }) => {
   const [selectedOption, setSelectedOption] = useState<'option1' | 'option2' | null>(null);
   const [viewMode, setViewMode] = useState<'realistic' | '3d-mesh'>('realistic');
@@ -59,8 +61,8 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
     const dummyUrl = window.location.href.split('?')[0] + '?result_id=' + Math.random().toString(36).substring(7);
     
     const shareData = {
-      title: 'Kết quả Tư vấn Aesthetica AI',
-      text: 'Xem kết quả phân tích và mô phỏng ngực của tôi trên Aesthetica AI.',
+      title: 'Kết quả Tư vấn IMPLEO By GC Aesthetics',
+      text: 'Xem kết quả phân tích và mô phỏng ngực của tôi trên IMPLEO By GC Aesthetics.',
       url: dummyUrl,
     };
 
@@ -98,7 +100,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
         <div className="border-b border-slate-100 px-6 py-5 bg-white flex flex-col md:flex-row md:items-center justify-between gap-4">
            <div>
              <h3 className="text-xl font-bold text-slate-800 flex items-center gap-3">
-               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 shadow-md">
+               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-600 shadow-md">
                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-5 w-5 text-white">
                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
                  </svg>
@@ -138,24 +140,24 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
           
           {/* Option Selection Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Option 1 */}
+            {/* Option 1 - Changed to Orange */}
             <div 
               onClick={() => setSelectedOption('option1')}
               className={`cursor-pointer group relative p-6 rounded-2xl border-2 transition-all duration-300 ${
                 selectedOption === 'option1' 
-                  ? 'border-teal-500 bg-teal-50/40 shadow-xl shadow-teal-100/50 scale-[1.01]' 
-                  : 'border-slate-200 bg-white hover:border-teal-300 hover:shadow-md'
+                  ? 'border-orange-500 bg-orange-50/40 shadow-xl shadow-orange-100/50 scale-[1.01]' 
+                  : 'border-slate-200 bg-white hover:border-orange-300 hover:shadow-md'
               }`}
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-2">
-                  <span className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${selectedOption === 'option1' ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-500'}`}>1</span>
-                  <span className={`text-xs font-bold uppercase tracking-wider ${selectedOption === 'option1' ? 'text-teal-700' : 'text-slate-500'}`}>
+                  <span className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${selectedOption === 'option1' ? 'bg-orange-600 text-white' : 'bg-slate-100 text-slate-500'}`}>1</span>
+                  <span className={`text-xs font-bold uppercase tracking-wider ${selectedOption === 'option1' ? 'text-orange-700' : 'text-slate-500'}`}>
                     Option 1
                   </span>
                 </div>
                 {selectedOption === 'option1' && (
-                  <span className="text-teal-600">
+                  <span className="text-orange-600">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6">
                       <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
                     </svg>
@@ -166,14 +168,14 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
                 <div className="text-4xl font-bold text-slate-800 tracking-tight">
                   {result.option1.volume} <span className="text-xl font-medium text-slate-400">cc</span>
                 </div>
-                <div className="text-lg text-teal-600 font-semibold">{result.option1.cupSize}</div>
+                <div className="text-lg text-orange-600 font-semibold">{result.option1.cupSize}</div>
                 <p className="text-slate-500 text-sm mt-3 pt-3 border-t border-slate-100 leading-relaxed">
                   <span className="font-medium text-slate-700">Style:</span> "{result.option1.style}"
                 </p>
               </div>
             </div>
 
-            {/* Option 2 */}
+            {/* Option 2 - Kept Purple for contrast/differentiation */}
             <div 
               onClick={() => setSelectedOption('option2')}
               className={`cursor-pointer group relative p-6 rounded-2xl border-2 transition-all duration-300 ${
@@ -215,6 +217,33 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
                <div className="flex items-center gap-2 text-slate-400 text-sm bg-slate-50 border border-slate-200 px-5 py-2.5 rounded-full">
                  <span>👆</span> Vui lòng chọn một phương án ở trên để bắt đầu mô phỏng
                </div>
+            </div>
+          )}
+
+          {/* New Recommendation CTA (Visible when option is selected) */}
+          {selectedOption && selectedVolume && (
+            <div className="bg-gradient-to-r from-orange-50 to-white border border-orange-100 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in shadow-sm">
+              <div className="flex items-center gap-3">
+                 <div className="bg-orange-100 p-2 rounded-full text-orange-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                      <path d="M11.47 3.84a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.06l-8.689-8.69a2.25 2.25 0 00-3.182 0l-8.69 8.69a.75.75 0 001.061 1.06l8.69-8.69z" />
+                      <path d="M12 5.432l8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-3a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H5.625a1.875 1.875 0 01-1.875-1.875v-6.198a2.29 2.29 0 00.091-.086L12 5.43z" />
+                    </svg>
+                 </div>
+                 <div>
+                   <h4 className="font-bold text-slate-800">Bạn hài lòng với Size {selectedVolume.volume}cc?</h4>
+                   <p className="text-sm text-slate-500">Tìm kiếm địa điểm thực hiện uy tín ngay.</p>
+                 </div>
+              </div>
+              <button 
+                onClick={() => onShowRecommendations(selectedVolume.volume)}
+                className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 text-white font-bold rounded-xl shadow-lg shadow-orange-200 transform transition-transform hover:scale-105 flex items-center justify-center gap-2"
+              >
+                <span>Tìm Bác sĩ & CSYT</span>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
+              </button>
             </div>
           )}
 
@@ -263,29 +292,29 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
                {/* After Image */}
                <div className="space-y-3">
                  <div className="flex items-center justify-between px-1">
-                   <span className={`text-xs font-bold uppercase tracking-wider ${selectedVolume ? 'text-indigo-600' : 'text-slate-400'}`}>
+                   <span className={`text-xs font-bold uppercase tracking-wider ${selectedVolume ? 'text-orange-600' : 'text-slate-400'}`}>
                      Mô phỏng {selectedVolume ? `(${selectedVolume?.volume}cc)` : ''}
                    </span>
-                   <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full">AFTER</span>
+                   <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full">AFTER</span>
                  </div>
                  
                  {/* Angle Tabs */}
                  <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg mb-2">
                     <button
                       onClick={() => setAngleMode('side-left')}
-                      className={`flex-1 py-1 text-[10px] font-bold rounded flex items-center justify-center gap-1 ${angleMode === 'side-left' ? 'bg-white shadow text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      className={`flex-1 py-1 text-[10px] font-bold rounded flex items-center justify-center gap-1 ${angleMode === 'side-left' ? 'bg-white shadow text-orange-600' : 'text-slate-400 hover:text-slate-600'}`}
                     >
                        <span>←</span> Trái
                     </button>
                     <button
                       onClick={() => setAngleMode('front')}
-                      className={`flex-1 py-1 text-[10px] font-bold rounded ${angleMode === 'front' ? 'bg-white shadow text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      className={`flex-1 py-1 text-[10px] font-bold rounded ${angleMode === 'front' ? 'bg-white shadow text-orange-600' : 'text-slate-400 hover:text-slate-600'}`}
                     >
                        Chính diện
                     </button>
                     <button
                       onClick={() => setAngleMode('side-right')}
-                      className={`flex-1 py-1 text-[10px] font-bold rounded flex items-center justify-center gap-1 ${angleMode === 'side-right' ? 'bg-white shadow text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      className={`flex-1 py-1 text-[10px] font-bold rounded flex items-center justify-center gap-1 ${angleMode === 'side-right' ? 'bg-white shadow text-orange-600' : 'text-slate-400 hover:text-slate-600'}`}
                     >
                        Phải <span>→</span>
                     </button>
@@ -295,13 +324,13 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
                  <div className="flex space-x-1 bg-white p-1 rounded-lg border border-slate-200 mb-1 shadow-sm">
                     <button 
                       onClick={() => setViewMode('realistic')}
-                      className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'realistic' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'realistic' ? 'bg-orange-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}
                     >
                       Ảnh thực tế
                     </button>
                     <button 
                       onClick={() => setViewMode('3d-mesh')}
-                      className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === '3d-mesh' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === '3d-mesh' ? 'bg-orange-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}
                     >
                       3D / Wireframe
                     </button>
@@ -309,7 +338,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
 
                  <div className={`relative aspect-[3/4] bg-white rounded-xl overflow-hidden border shadow-sm flex items-center justify-center transition-all ${
                      currentSimulationImage
-                     ? 'border-indigo-500/30 ring-4 ring-indigo-500/5' 
+                     ? 'border-orange-500/30 ring-4 ring-orange-500/5' 
                      : 'border-slate-200 border-dashed bg-slate-50/50'
                    }`}>
                    
@@ -325,7 +354,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
                            <button
                               onClick={triggerGenerate}
                               disabled={isGeneratingSimulation}
-                              className="bg-white/90 backdrop-blur text-slate-700 p-2 rounded-full shadow-lg hover:bg-indigo-50 hover:text-indigo-600 transition-all border border-slate-200"
+                              className="bg-white/90 backdrop-blur text-slate-700 p-2 rounded-full shadow-lg hover:bg-orange-50 hover:text-orange-600 transition-all border border-slate-200"
                               title="Tạo lại ảnh này"
                            >
                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-5 h-5 ${isGeneratingSimulation ? 'animate-spin' : ''}`}>
@@ -342,8 +371,8 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
                       <div className="text-center p-6 text-slate-400">
                         {isGeneratingSimulation ? (
                            <div className="flex flex-col items-center gap-3">
-                             <div className={`animate-spin h-8 w-8 border-2 ${viewMode === '3d-mesh' ? 'border-cyan-500' : 'border-indigo-600'} border-t-transparent rounded-full`}></div>
-                             <p className={`text-sm font-medium ${viewMode === '3d-mesh' ? 'text-cyan-600' : 'text-indigo-600'}`}>
+                             <div className={`animate-spin h-8 w-8 border-2 ${viewMode === '3d-mesh' ? 'border-cyan-500' : 'border-orange-600'} border-t-transparent rounded-full`}></div>
+                             <p className={`text-sm font-medium ${viewMode === '3d-mesh' ? 'text-cyan-600' : 'text-orange-600'}`}>
                                Đang tạo góc {angleMode === 'front' ? 'chính diện' : angleMode === 'side-left' ? 'nghiêng trái' : 'nghiêng phải'}...
                              </p>
                            </div>
@@ -351,7 +380,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
                           <div className="flex flex-col items-center gap-3">
                              {selectedOption ? (
                                <>
-                                 <div className={`${viewMode === '3d-mesh' ? 'bg-cyan-50 text-cyan-600' : 'bg-indigo-50 text-indigo-500'} p-3 rounded-full`}>
+                                 <div className={`${viewMode === '3d-mesh' ? 'bg-cyan-50 text-cyan-600' : 'bg-orange-50 text-orange-600'} p-3 rounded-full`}>
                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
                                    </svg>
@@ -361,7 +390,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
                                  </p>
                                  <button 
                                    onClick={triggerGenerate}
-                                   className={`px-5 py-2.5 ${viewMode === '3d-mesh' ? 'bg-cyan-600 hover:bg-cyan-700 shadow-cyan-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'} text-white rounded-xl text-sm font-bold shadow-lg transition-all hover:scale-105`}
+                                   className={`px-5 py-2.5 ${viewMode === '3d-mesh' ? 'bg-cyan-600 hover:bg-cyan-700 shadow-cyan-200' : 'bg-orange-600 hover:bg-orange-700 shadow-orange-200'} text-white rounded-xl text-sm font-bold shadow-lg transition-all hover:scale-105`}
                                  >
                                    Tạo ảnh mô phỏng
                                  </button>
@@ -385,10 +414,10 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
 
       {/* 2. Analysis Report Card - Collapsible Bottom Block */}
       <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-slate-200">
-        {/* Header - Clickable to Toggle */}
+        {/* Header - Clickable to Toggle - Changed to Orange */}
         <div 
            onClick={() => setIsReportExpanded(!isReportExpanded)}
-           className="bg-[#0f766e] px-6 py-4 flex items-center justify-between cursor-pointer hover:bg-[#0d6e66] transition-colors"
+           className="bg-[#c2410c] px-6 py-4 flex items-center justify-between cursor-pointer hover:bg-[#9a3412] transition-colors"
         >
           <div className="flex items-center gap-3">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-white/90">
@@ -398,7 +427,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
             <h2 className="text-white font-bold text-lg tracking-wide">Báo cáo Phân tích AI</h2>
           </div>
           <div className="flex items-center gap-3">
-             <span className="bg-white/10 backdrop-blur-sm text-teal-50 text-xs font-medium px-3 py-1.5 rounded-full border border-white/20 hidden sm:inline-block">
+             <span className="bg-white/10 backdrop-blur-sm text-orange-50 text-xs font-medium px-3 py-1.5 rounded-full border border-white/20 hidden sm:inline-block">
                Bấm để xem chi tiết
              </span>
              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={`w-6 h-6 text-white transition-transform duration-300 ${isReportExpanded ? 'rotate-180' : ''}`}>
@@ -414,7 +443,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
                {/* Column 1 */}
                <div className="p-6 md:p-8 flex flex-col hover:bg-white transition-colors">
                  <div className="flex items-center gap-3 mb-4">
-                   <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-600 flex items-center justify-center">
+                   <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                       </svg>
