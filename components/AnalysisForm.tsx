@@ -20,7 +20,9 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showGuide, setShowGuide] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -66,9 +68,8 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
     e.stopPropagation();
     setSelectedFile(null);
     setPreviewUrl(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -202,11 +203,10 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
             </label>
             
             <div 
-              onClick={() => fileInputRef.current?.click()}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              className={`relative border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all duration-300 group overflow-hidden ${
+              className={`relative border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-300 overflow-hidden ${
                 isDragging 
                   ? 'border-orange-500 bg-orange-50 scale-[1.01] shadow-lg' 
                   : previewUrl 
@@ -214,11 +214,20 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
                     : 'border-slate-300 hover:border-orange-400 hover:bg-slate-50'
               }`}
             >
+              {/* Inputs */}
               <input
                 type="file"
                 accept="image/*"
                 className="hidden"
                 ref={fileInputRef}
+                onChange={handleFileChange}
+              />
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment" // Force rear camera on mobile
+                className="hidden"
+                ref={cameraInputRef}
                 onChange={handleFileChange}
               />
               
@@ -236,20 +245,10 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
-
-                  {/* Change Image Overlay */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/0 group-hover:bg-slate-900/30 transition-all duration-300">
-                     <div className="opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 bg-white/90 backdrop-blur text-slate-800 px-4 py-2 rounded-full font-bold shadow-lg text-sm flex items-center gap-2">
-                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                         <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                       </svg>
-                       Thay đổi ảnh
-                     </div>
-                  </div>
                 </div>
               ) : (
-                <div className="py-10 flex flex-col items-center justify-center transition-transform duration-300 group-hover:scale-105">
-                  <div className={`h-16 w-16 mb-4 rounded-full flex items-center justify-center transition-colors ${isDragging ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-400 group-hover:bg-orange-50 group-hover:text-orange-500'}`}>
+                <div className="py-8 flex flex-col items-center justify-center">
+                  <div className={`h-16 w-16 mb-4 rounded-full flex items-center justify-center transition-colors ${isDragging ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-400'}`}>
                     {isDragging ? (
                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-8 h-8 animate-bounce">
                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
@@ -260,10 +259,29 @@ export const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading 
                        </svg>
                     )}
                   </div>
-                  <p className="text-slate-700 font-bold text-lg mb-1">
-                    {isDragging ? 'Thả ảnh vào đây' : 'Nhấn để tải ảnh hoặc Kéo thả'}
-                  </p>
-                  <p className="text-sm text-slate-400">Hỗ trợ JPG, PNG (Tối đa 5MB)</p>
+                  
+                  {/* Dual Action Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+                    <button 
+                       type="button"
+                       onClick={() => fileInputRef.current?.click()}
+                       className="flex-1 py-2 px-4 bg-white border border-slate-200 rounded-lg text-slate-700 font-semibold hover:bg-slate-50 transition-colors shadow-sm text-sm"
+                    >
+                       Chọn ảnh từ máy
+                    </button>
+                    <button 
+                       type="button"
+                       onClick={() => cameraInputRef.current?.click()}
+                       className="flex-1 py-2 px-4 bg-orange-100 border border-orange-200 rounded-lg text-orange-700 font-semibold hover:bg-orange-200 transition-colors shadow-sm text-sm flex items-center justify-center gap-2"
+                    >
+                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                         <path fillRule="evenodd" d="M1 8a2 2 0 0 1 2-2h.93a2 2 0 0 0 1.664-.89l.812-1.22A2 2 0 0 1 8.07 3h3.86a2 2 0 0 1 1.664.89l.812 1.22A2 2 0 0 0 16.07 6H17a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8Zm8 9a5 5 0 1 0 0-10 5 5 0 0 0 0 10ZM8 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm0 7.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" clipRule="evenodd" />
+                       </svg>
+                       Chụp ảnh ngay
+                    </button>
+                  </div>
+                  
+                  <p className="text-xs text-slate-400 mt-3">Hỗ trợ JPG, PNG (Tối đa 5MB)</p>
                 </div>
               )}
             </div>

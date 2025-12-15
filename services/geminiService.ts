@@ -2,8 +2,25 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { AnalysisResult, PatientMetrics } from "../types";
 
-// Support both standard process.env (Node) and import.meta.env (Vite/Vercel)
-const apiKey = (import.meta as any).env?.VITE_API_KEY || (import.meta as any).env?.VITE_GOOGLE_API_KEY || process.env.API_KEY;
+// Helper để lấy biến môi trường an toàn trên cả Vite (Browser) và Node
+const getEnv = (key: string) => {
+  // 1. Ưu tiên Vite (import.meta.env)
+  if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+    return (import.meta as any).env[key];
+  }
+  // 2. Fallback sang process.env (chỉ khi process tồn tại)
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env[key];
+    }
+  } catch (e) {
+    // Bỏ qua lỗi ReferenceError nếu process chưa được định nghĩa
+  }
+  return '';
+};
+
+// Lấy API Key theo thứ tự ưu tiên
+const apiKey = getEnv('VITE_API_KEY') || getEnv('VITE_GOOGLE_API_KEY') || getEnv('API_KEY');
 
 if (!apiKey) {
   console.warn("API Key is missing! Please set VITE_API_KEY in Vercel Environment Variables.");
