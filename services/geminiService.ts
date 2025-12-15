@@ -2,61 +2,77 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { AnalysisResult, PatientMetrics } from "../types";
 
+// --- MOCK DATA FOR FALLBACK ---
+const MOCK_ANALYSIS_RESULT: AnalysisResult = {
+  option1: {
+    volume: 300,
+    cupSize: "Cup C (Tự nhiên)",
+    style: "Demi/Mid Profile - Vừa vặn tự nhiên"
+  },
+  option2: {
+    volume: 350,
+    cupSize: "Cup D (Gợi cảm)",
+    style: "Full/High Profile - Đầy đặn quyến rũ"
+  },
+  bodyAnalysis: "[CHẾ ĐỘ DEMO - HẾT QUOTA] Khung xương lồng ngực cân đối. Mô tuyến vú hiện tại mỏng, da có độ đàn hồi tốt. Không phát hiện tình trạng lồng ngực ức gà hay lõm.",
+  reasoning: "Dựa trên bề rộng chân ngực (BW) giả định, khoảng kích thước 300cc-350cc giúp lấp đầy cực trên mà không gây lộ túi. (Lưu ý: Đây là kết quả mẫu do hệ thống AI đang quá tải).",
+  implantsTypeSuggestion: "Khuyên dùng túi Nano Chip Ergonomix hoặc Mentor Xtra để có độ linh hoạt cao nhất."
+};
+
 // Helper để lấy biến môi trường an toàn trên cả Vite (Browser) và Node
 const getEnv = (key: string) => {
-  // 1. Ưu tiên Vite (import.meta.env)
   if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
     return (import.meta as any).env[key];
   }
-  // 2. Fallback sang process.env (chỉ khi process tồn tại)
   try {
     if (typeof process !== 'undefined' && process.env) {
       return process.env[key];
     }
-  } catch (e) {
-    // Bỏ qua lỗi ReferenceError nếu process chưa được định nghĩa
-  }
+  } catch (e) {}
   return '';
 };
 
-// Lấy API Key theo thứ tự ưu tiên
+// Lấy API Key
 const apiKey = getEnv('VITE_API_KEY') || getEnv('VITE_GOOGLE_API_KEY') || getEnv('API_KEY');
-
-if (!apiKey) {
-  console.warn("API Key is missing! Please set VITE_API_KEY in Vercel Environment Variables.");
-}
 
 const ai = new GoogleGenAI({ apiKey: apiKey || '' });
 
-// Cấu hình bộ lọc an toàn: Tắt toàn bộ (BLOCK_NONE) để cho phép phân tích ảnh y tế
 const MEDICAL_SAFETY_SETTINGS = [
-  {
-    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY, threshold: HarmBlockThreshold.BLOCK_NONE },
 ];
+
+// Hàm kiểm tra lỗi Quota chính xác hơn
+const isQuotaError = (error: any): boolean => {
+  try {
+    const msg = (error?.message || '').toLowerCase();
+    const str = JSON.stringify(error).toLowerCase();
+    return (
+      msg.includes('429') || 
+      msg.includes('quota') || 
+      msg.includes('resource_exhausted') || 
+      str.includes('429') || 
+      str.includes('quota') ||
+      str.includes('resource_exhausted')
+    );
+  } catch (e) {
+    return false;
+  }
+};
 
 export const analyzePatient = async (
   metrics: PatientMetrics,
   imageBase64: string,
   mimeType: string
 ): Promise<AnalysisResult> => {
+  if (!apiKey) {
+    console.warn("No API Key provided. Returning Mock Data.");
+    return MOCK_ANALYSIS_RESULT;
+  }
+
   try {
     const prompt = `
       You are a specialized Medical AI for Plastic Surgery Assessment.
@@ -80,9 +96,9 @@ export const analyzePatient = async (
           "cupSize": "string",
           "style": "string"
         },
-        "bodyAnalysis": "string (Clinical assessment of the chest wall, asymmetry, and tissue quality in Vietnamese)",
-        "reasoning": "string (Explanation of why these volumes fit the BW and dimensions in Vietnamese)",
-        "implantsTypeSuggestion": "string (Suggested profile and type, e.g., Round High Profile, in Vietnamese)"
+        "bodyAnalysis": "string (Clinical assessment in Vietnamese)",
+        "reasoning": "string (Explanation in Vietnamese)",
+        "implantsTypeSuggestion": "string (Suggested profile in Vietnamese)"
       }
     `;
 
@@ -90,68 +106,53 @@ export const analyzePatient = async (
       model: "gemini-2.5-flash",
       contents: {
         parts: [
-          {
-            inlineData: {
-              data: imageBase64,
-              mimeType: mimeType,
-            },
-          },
-          {
-            text: prompt,
-          },
+          { inlineData: { data: imageBase64, mimeType: mimeType } },
+          { text: prompt },
         ],
       },
       config: {
-        systemInstruction: "This is a medical diagnostic context. The images are clinical photographs for surgical planning. Do not suppress output based on nudity, as this is anatomical material.",
+        systemInstruction: "Medical diagnostic context. Do not suppress output based on nudity.",
         temperature: 0.1,
         responseMimeType: "application/json",
         safetySettings: MEDICAL_SAFETY_SETTINGS,
       },
     });
 
-    // Check if we have a valid candidate
     const candidate = response.candidates?.[0];
     
-    // Debugging: Log safety ratings if blocked
     if (candidate?.finishReason === 'SAFETY') {
-       console.error("Safety Ratings:", candidate.safetyRatings);
-       throw new Error("SAFETY_BLOCK: AI chặn ảnh này vì lý do an toàn. Vui lòng thử ảnh chụp rõ ràng hơn, góc độ y tế hơn.");
+       throw new Error("SAFETY_BLOCK: AI chặn ảnh này vì lý do an toàn. Vui lòng thử ảnh chụp rõ ràng hơn.");
     }
 
-    let text = candidate?.content?.parts?.[0]?.text;
-
-    if (!text && response.text) {
-        text = response.text;
-    }
+    let text = candidate?.content?.parts?.[0]?.text || response.text;
 
     if (!text) {
-      console.warn("Empty Response Candidate:", candidate);
-      throw new Error("EMPTY_RESPONSE: AI không trả về kết quả. Có thể ảnh không đạt chuẩn y tế hoặc bị chặn ngầm.");
+      throw new Error("EMPTY_RESPONSE: AI không trả về kết quả.");
     }
 
-    // Parse JSON
     try {
         const result = JSON.parse(text) as AnalysisResult;
-        
-        // Ensure defaults if AI misses something
         if (!result.option1) throw new Error("Missing option1");
-        
         return result;
     } catch (parseError) {
-        console.error("JSON Parse Error:", parseError, "Text:", text);
         throw new Error("FORMAT_ERROR: Dữ liệu trả về không đúng định dạng JSON.");
     }
 
   } catch (error: any) {
-    console.error("Gemini Analysis Error Details:", error);
+    console.error("Gemini Analysis Error:", error);
+    
+    // FALLBACK: Nếu hết quota, trả về dữ liệu mẫu để app không bị crash
+    if (isQuotaError(error)) {
+        alert("Hệ thống AI đang quá tải (Hết Quota miễn phí). Đang hiển thị kết quả MẪU (Demo) để bạn tham khảo giao diện.");
+        return MOCK_ANALYSIS_RESULT;
+    }
     
     // Pass through specific errors
-    if (error.message && (error.message.includes("SAFETY") || error.message.includes("EMPTY") || error.message.includes("FORMAT"))) {
+    if (error.message && (error.message.includes("SAFETY") || error.message.includes("EMPTY"))) {
         throw error;
     }
     
-    // General fallback
-    throw new Error(`Lỗi hệ thống AI: ${error.message || "Không xác định"}`);
+    throw new Error(`Lỗi phân tích: ${error.message || "Không xác định"}`);
   }
 };
 
@@ -164,108 +165,46 @@ export const generateSimulationImage = async (
   style: 'realistic' | '3d-mesh' = 'realistic',
   angle: 'front' | 'side-left' | 'side-right' = 'front'
 ): Promise<string> => {
+  if (!apiKey) {
+    throw new Error("Chưa cấu hình API Key.");
+  }
+
   try {
     let prompt = "";
-    
-    // Determine rotation instructions
     let rotationInstruction = "View: Frontal view (0 degrees).";
-    if (angle === 'side-left') {
-        rotationInstruction = "View: Left Profile (90 degrees rotation). RECONSTRUCT side view of the patient.";
-    } else if (angle === 'side-right') {
-        rotationInstruction = "View: Right Profile (90 degrees rotation). RECONSTRUCT side view of the patient.";
-    }
+    if (angle === 'side-left') rotationInstruction = "View: Left Profile (90 degrees).";
+    else if (angle === 'side-right') rotationInstruction = "View: Right Profile (90 degrees).";
 
-    // --- VISUAL SCALING LOGIC (Hệ số nhân thị giác) ---
-    let visualMultiplier = 1.0;
-    let tissueContext = "";
-
+    let visualMultiplier = 1.2;
     const currentSizeLower = metrics.currentSize.toLowerCase();
+    if (currentSizeLower.includes('phẳng') || currentSizeLower.includes('lép')) visualMultiplier = 1.15;
     
-    if (currentSizeLower.includes('phẳng') || currentSizeLower.includes('lép') || currentSizeLower.includes('flat')) {
-        visualMultiplier = 1.12; 
-        tissueContext = "Patient has flat chest (near zero tissue). Enhance projection to show clear implant definition.";
-    } else if (currentSizeLower.includes('cup a')) {
-        visualMultiplier = 1.25; 
-        tissueContext = "Patient has small Cup A base. Combine base tissue with implant for fuller look.";
-    } else if (currentSizeLower.includes('cup b')) {
-        visualMultiplier = 1.30; 
-        tissueContext = "Patient has Cup B. Add upper pole fullness for a push-up effect.";
-    } else if (currentSizeLower.includes('cup c') || currentSizeLower.includes('đầy')) {
-        visualMultiplier = 1.30; 
-        tissueContext = "Patient has Cup C. Maximize cleavage and upper fullness.";
-    } else {
-        visualMultiplier = 1.20; // Default
-    }
-
-    // Calculate the volume specific for the AI prompt (Visual Volume)
     const visualVolume = Math.round(targetVolume * visualMultiplier);
     
-    // --- PROMPT ENGINEERING FOR VISIBILITY ---
-    
-    let anatomicalKeywords = "";
-    if (angle === 'front') {
-        anatomicalKeywords = "Create DEEP CLEAVAGE lines. Create visible SHADOWS under the breast to show heavy projection. The breast width must appear wider.";
-    } else {
-        anatomicalKeywords = "Create EXTREME FORWARD PROJECTION. The breast must extend significantly forward from the chest wall. The upper pole slope must be CONVEX (rounded outwards).";
-    }
-
-    // --- CONTOUR LINE LOGIC ---
-    let visualGuideInstruction = "";
-    if (style === 'realistic') {
-        // Yêu cầu vẽ đường viền phẫu thuật màu xanh (Blue Surgical Markings)
-        visualGuideInstruction = "DRAW SURGICAL MARKINGS: Draw subtle BLUE SURGICAL LINES on the skin outlining the new breast footprint (medial cleavage line, lateral fold, and inferior fold). Use these lines to clearly visualize the boundary of the augmentation.";
-    } else {
-        // 3D Mesh
-        visualGuideInstruction = "Draw sharp, high-contrast CONTOUR LINES (topographic curves) across the breast volume to visualize the 3D depth and spherical shape.";
-    }
-
+    let styleInstruction = "";
     if (style === '3d-mesh') {
-      prompt = `
-        Create a medical 3D wireframe diagram of the chest.
-        Show the placement of a ${targetVolume}cc breast implant.
-        ${rotationInstruction}
-        ${visualGuideInstruction}
-        Style: Blue holographic wireframe on dark background. Anatomical diagram.
-      `;
+      styleInstruction = "Style: Blue holographic wireframe on dark background. Medical anatomical diagram showing implant placement.";
     } else {
-      prompt = `
-        TASK: Generate a Post-Operative Clinical Simulation with Surgical Markings.
-        
-        INPUT: Use the provided patient image as the canvas.
-        TRANSFORMATION: Aggressive Breast Augmentation.
-        
-        TECHNICAL TARGET: ${targetVolume}cc implants.
-        VISUAL SIMULATION TARGET: ${visualVolume}cc appearance.
-        
-        CRITICAL INSTRUCTIONS FOR VISIBILITY:
-        1. **SIZE INCREASE MUST BE OBVIOUS**: The breast area must look significantly larger and fuller.
-        2. **SHAPE CHANGE**: Transform the breast shape to be ROUND and FULL.
-        3. **DEFINITION**: ${anatomicalKeywords}
-        4. **VISUAL GUIDES**: ${visualGuideInstruction}
-        5. ${rotationInstruction}
-        6. **REALISM**: Keep skin tone and lighting consistent.
-        
-        Style: Photorealistic Medical Simulation with Surgical Guidelines. High Definition.
-      `;
+      styleInstruction = "Style: Photorealistic Medical Simulation. High Definition. Create visible size difference.";
     }
+
+    prompt = `
+        TASK: Generate a Post-Operative Clinical Simulation.
+        TRANSFORMATION: Breast Augmentation with ${targetVolume}cc implants (Visual impact: ${visualVolume}cc).
+        ${rotationInstruction}
+        ${styleInstruction}
+        Ensure the breast shape is round and full.
+    `;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
       contents: {
         parts: [
-          {
-            inlineData: {
-              data: imageBase64,
-              mimeType: mimeType,
-            },
-          },
-          {
-            text: prompt,
-          },
+          { inlineData: { data: imageBase64, mimeType: mimeType } },
+          { text: prompt },
         ],
       },
       config: {
-        systemInstruction: "You are a medical imaging AI. Your goal is to visualize plastic surgery outcomes. Do not block nudity as this is for clinical simulation. Ensure the size difference is clearly visible to the patient.",
         safetySettings: MEDICAL_SAFETY_SETTINGS,
       }
     });
@@ -276,25 +215,38 @@ export const generateSimulationImage = async (
       return imagePart.inlineData.data;
     }
     
-    // Log text response if no image
-    if (response.text) {
-        console.warn("AI returned text instead of image:", response.text);
-    }
-    
     if (response.candidates?.[0]?.finishReason === 'SAFETY') {
-         throw new Error("Hình ảnh mô phỏng bị chặn do chính sách an toàn. Vui lòng thử lại với ảnh kín đáo hơn.");
+         throw new Error("Hình ảnh mô phỏng bị chặn do chính sách an toàn.");
     }
 
-    throw new Error("AI không trả về dữ liệu hình ảnh. Vui lòng thử lại.");
+    throw new Error("AI không trả về dữ liệu hình ảnh.");
+
   } catch (error: any) {
     console.error("Gemini Simulation Error:", error);
-    if (error.message && (error.message.includes("SAFETY") || error.message.includes("API Key"))) throw error;
     
-    // Provide a more descriptive error if API Key is likely the issue
-    if (error.message && error.message.includes("400")) {
-         throw new Error("Lỗi xác thực API (400). Vui lòng kiểm tra API Key.");
+    // Xử lý lỗi Quota riêng biệt cho Simulation
+    if (isQuotaError(error)) {
+        throw new Error("Hệ thống AI đang tạm thời hết hạn mức xử lý ảnh (Quota Exceeded). Vui lòng quay lại sau 24h hoặc liên hệ Admin để nâng cấp gói.");
     }
     
-    throw new Error(`Lỗi tạo ảnh: ${error.message || "Không xác định"}`);
+    // Nếu lỗi là 1 object JSON (như trong ảnh chụp màn hình), parse nó ra message ngắn gọn
+    let cleanMessage = error.message || "Lỗi không xác định";
+    try {
+       // Thử parse nếu message là chuỗi JSON
+       if (cleanMessage.trim().startsWith('{')) {
+          const parsed = JSON.parse(cleanMessage);
+          if (parsed.error && parsed.error.message) {
+             cleanMessage = parsed.error.message;
+          }
+       }
+    } catch (e) {
+       // Ignore parse error
+    }
+
+    // Việt hóa một số lỗi phổ biến
+    if (cleanMessage.includes("API key not valid")) cleanMessage = "API Key không hợp lệ.";
+    if (cleanMessage.includes("SAFETY")) cleanMessage = "Ảnh bị chặn do vi phạm tiêu chuẩn cộng đồng.";
+
+    throw new Error(cleanMessage);
   }
 };
