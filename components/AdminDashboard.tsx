@@ -356,7 +356,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                </div>
              ) : (
                /* Edit Form */
-               isFormOpen && (
                <div className="p-6 md:p-8 bg-slate-50/50">
                  <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-800">
