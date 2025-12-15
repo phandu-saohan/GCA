@@ -250,7 +250,8 @@ const App: React.FC = () => {
 
     } catch (error: any) {
        console.error("Simulation Error:", error);
-       alert("Hệ thống AI đang bận hoặc gặp lỗi xử lý ảnh. Vui lòng thử lại sau giây lát.");
+       // Hiển thị lỗi cụ thể để dễ debug (Safety, API Key, Quota...)
+       alert(error.message || "Hệ thống AI đang bận. Vui lòng thử lại sau.");
     } finally {
       setIsGeneratingSimulation(false);
     }

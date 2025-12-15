@@ -5,8 +5,6 @@ import { createClient } from '@supabase/supabase-js';
 // HƯỚNG DẪN SỬA LỖI UPLOAD ẢNH (QUAN TRỌNG)
 // ==========================================
 // Nếu bạn gặp lỗi khi upload, hãy Copy đoạn SQL dưới đây và chạy trong Supabase SQL Editor.
-// Đoạn này sẽ Reset lại quyền của Bucket 'resources' để đảm bảo bạn có quyền Ghi.
-
 /*
 -- 1. Cho phép Insert (Upload) cho user đã đăng nhập
 DROP POLICY IF EXISTS "Authenticated Insert" ON storage.objects;
@@ -29,7 +27,7 @@ ON storage.objects FOR DELETE
 TO authenticated
 USING ( bucket_id = 'resources' );
 
--- 4. Cho phép Public Select (Xem ảnh - đã có, nhưng chạy lại cho chắc)
+-- 4. Cho phép Public Select (Xem ảnh)
 DROP POLICY IF EXISTS "Public Select" ON storage.objects;
 CREATE POLICY "Public Select"
 ON storage.objects FOR SELECT
@@ -42,7 +40,12 @@ VALUES ('resources', 'resources', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 */
 
-const supabaseUrl = 'https://ygajfbxxrbjlgvqrxxkn.supabase.co';
-const supabaseKey = 'sb_publishable_wQMez6jdRAotl3TIwEK7RA_HF3BJQmF';
+// Ưu tiên đọc từ biến môi trường (Vercel), nếu không có thì dùng fallback (Local/Hardcoded)
+const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://ygajfbxxrbjlgvqrxxkn.supabase.co';
+const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_KEY || 'sb_publishable_wQMez6jdRAotl3TIwEK7RA_HF3BJQmF';
+
+if (!supabaseUrl || !supabaseKey) {
+  console.warn("Supabase URL or Key is missing. Please check your Environment Variables.");
+}
 
 export const supabase = createClient(supabaseUrl, supabaseKey);

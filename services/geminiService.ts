@@ -2,7 +2,14 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { AnalysisResult, PatientMetrics } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Support both standard process.env (Node) and import.meta.env (Vite/Vercel)
+const apiKey = (import.meta as any).env?.VITE_API_KEY || (import.meta as any).env?.VITE_GOOGLE_API_KEY || process.env.API_KEY;
+
+if (!apiKey) {
+  console.warn("API Key is missing! Please set VITE_API_KEY in Vercel Environment Variables.");
+}
+
+const ai = new GoogleGenAI({ apiKey: apiKey || '' });
 
 // Cấu hình bộ lọc an toàn: Tắt toàn bộ (BLOCK_NONE) để cho phép phân tích ảnh y tế
 const MEDICAL_SAFETY_SETTINGS = [
@@ -252,14 +259,25 @@ export const generateSimulationImage = async (
       return imagePart.inlineData.data;
     }
     
+    // Log text response if no image
+    if (response.text) {
+        console.warn("AI returned text instead of image:", response.text);
+    }
+    
     if (response.candidates?.[0]?.finishReason === 'SAFETY') {
-         throw new Error("Hình ảnh mô phỏng bị chặn do chính sách an toàn.");
+         throw new Error("Hình ảnh mô phỏng bị chặn do chính sách an toàn. Vui lòng thử lại với ảnh kín đáo hơn.");
     }
 
-    throw new Error("AI không trả về dữ liệu hình ảnh.");
+    throw new Error("AI không trả về dữ liệu hình ảnh. Vui lòng thử lại.");
   } catch (error: any) {
     console.error("Gemini Simulation Error:", error);
-    if (error.message && error.message.includes("SAFETY")) throw error;
-    throw new Error("Không thể tạo hình ảnh mô phỏng lúc này.");
+    if (error.message && (error.message.includes("SAFETY") || error.message.includes("API Key"))) throw error;
+    
+    // Provide a more descriptive error if API Key is likely the issue
+    if (error.message && error.message.includes("400")) {
+         throw new Error("Lỗi xác thực API (400). Vui lòng kiểm tra API Key.");
+    }
+    
+    throw new Error(`Lỗi tạo ảnh: ${error.message || "Không xác định"}`);
   }
 };
