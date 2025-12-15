@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnalysisResult, VolumeOption } from '../types';
 
 interface SimulationAngles {
@@ -36,6 +36,9 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
   const [angleMode, setAngleMode] = useState<'front' | 'side-left' | 'side-right'>('front');
   const [show3DModal, setShow3DModal] = useState(false);
   const [isReportExpanded, setIsReportExpanded] = useState(false);
+  
+  // State to handle smooth image transition
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   const selectedVolume = selectedOption === 'option1' ? result.option1 : result.option2;
 
@@ -86,6 +89,13 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
   const currentSimulationImage = selectedOption 
     ? simulations[selectedOption][viewMode][angleMode]
     : null;
+
+  // Reset image loaded state when the image source changes
+  useEffect(() => {
+    // If no image, ensure loaded is false. If there is an image,
+    // wait for onLoad to set it to true.
+    setImageLoaded(false);
+  }, [currentSimulationImage]);
 
   const open3DModal = () => {
     if (!selectedOption) setSelectedOption('option1');
@@ -275,9 +285,10 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
                         {/* Overlay text if showing side angle but original is front */}
                         {angleMode !== 'front' && (
                           <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-[2px]">
-                             <p className="text-slate-500 text-xs text-center px-4">
+                             <p className="text-slate-500 text-xs text-center px-4 font-medium">
+                               <span className="block mb-2 text-2xl">📸</span>
                                Chưa có ảnh gốc {angleMode === 'side-left' ? 'nghiêng trái' : 'nghiêng phải'}.<br/>
-                               Hiển thị so sánh dựa trên tái tạo AI.
+                               Hiển thị so sánh dựa trên tái tạo AI từ ảnh chính diện.
                              </p>
                           </div>
                         )}
@@ -298,25 +309,37 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
                    <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full">AFTER</span>
                  </div>
                  
-                 {/* Angle Tabs */}
-                 <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg mb-2">
+                 {/* VISIBLE ANGLE SELECTOR TABS */}
+                 <div className="flex space-x-1 bg-slate-200 p-1.5 rounded-xl mb-3 shadow-inner">
                     <button
                       onClick={() => setAngleMode('side-left')}
-                      className={`flex-1 py-1 text-[10px] font-bold rounded flex items-center justify-center gap-1 ${angleMode === 'side-left' ? 'bg-white shadow text-orange-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${angleMode === 'side-left' ? 'bg-white text-orange-600 shadow-md ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-300/50'}`}
+                      title="Góc nghiêng trái"
                     >
-                       <span>←</span> Trái
+                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                       </svg>
+                       <span className="hidden sm:inline">Nghiêng Trái</span>
                     </button>
                     <button
                       onClick={() => setAngleMode('front')}
-                      className={`flex-1 py-1 text-[10px] font-bold rounded ${angleMode === 'front' ? 'bg-white shadow text-orange-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${angleMode === 'front' ? 'bg-white text-orange-600 shadow-md ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-300/50'}`}
+                      title="Góc chính diện"
                     >
-                       Chính diện
+                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                       </svg>
+                       <span>Chính diện</span>
                     </button>
                     <button
                       onClick={() => setAngleMode('side-right')}
-                      className={`flex-1 py-1 text-[10px] font-bold rounded flex items-center justify-center gap-1 ${angleMode === 'side-right' ? 'bg-white shadow text-orange-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${angleMode === 'side-right' ? 'bg-white text-orange-600 shadow-md ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-300/50'}`}
+                      title="Góc nghiêng phải"
                     >
-                       Phải <span>→</span>
+                       <span className="hidden sm:inline">Nghiêng Phải</span>
+                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                         <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                       </svg>
                     </button>
                  </div>
 
@@ -343,11 +366,14 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
                    }`}>
                    
                    {currentSimulationImage ? (
-                      <div className="relative w-full h-full">
+                      <div className="relative w-full h-full flex items-center justify-center">
                         <img 
                           src={`data:image/png;base64,${currentSimulationImage}`} 
                           alt="Simulation" 
-                          className="w-full h-full object-contain animate-fade-in"
+                          onLoad={() => setImageLoaded(true)}
+                          className={`max-w-full max-h-full object-contain transition-all duration-700 ease-out ${
+                            imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+                          }`}
                         />
                         {/* Regenerate Button Overlay */}
                         <div className="absolute bottom-3 right-3">
@@ -364,7 +390,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({
                         </div>
                         {/* Angle Indicator Label */}
                         <div className="absolute top-3 left-3 bg-black/50 text-white text-[10px] font-bold px-2 py-1 rounded">
-                          {angleMode === 'front' ? 'FRONT VIEW' : angleMode === 'side-left' ? 'LEFT PROFILE' : 'RIGHT PROFILE'}
+                          {angleMode === 'front' ? 'CHÍNH DIỆN' : angleMode === 'side-left' ? 'GÓC NGHIÊNG TRÁI' : 'GÓC NGHIÊNG PHẢI'}
                         </div>
                       </div>
                    ) : (

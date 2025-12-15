@@ -1,6 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Product, Clinic, Doctor } from '../types';
+import { supabase } from '../services/supabase';
 
 interface AdminDashboardProps {
   products: Product[];
@@ -24,21 +25,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [activeTab, setActiveTab] = useState<'products' | 'clinics' | 'doctors'>('products');
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   // State for Image Management
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Handlers
-  const handleDelete = (id: string, type: 'products' | 'clinics' | 'doctors') => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa mục này?")) return;
+  const handleDelete = async (id: string, type: 'products' | 'clinics' | 'doctors') => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa mục này? Dữ liệu sẽ bị xóa khỏi Supabase.")) return;
 
-    if (type === 'products') {
-      onUpdateProducts(products.filter(p => p.id !== id));
-    } else if (type === 'clinics') {
-      onUpdateClinics(clinics.filter(c => c.id !== id));
-    } else {
-      onUpdateDoctors(doctors.filter(d => d.id !== id));
+    try {
+      const { error } = await supabase.from(type).delete().eq('id', id);
+      if (error) throw error;
+
+      // Update local state UI
+      if (type === 'products') {
+        onUpdateProducts(products.filter(p => p.id !== id));
+      } else if (type === 'clinics') {
+        onUpdateClinics(clinics.filter(c => c.id !== id));
+      } else {
+        onUpdateDoctors(doctors.filter(d => d.id !== id));
+      }
+    } catch (err: any) {
+      alert(`Lỗi khi xóa: ${err.message}`);
     }
   };
 
@@ -47,18 +58,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     // Determine which field holds the image
     const img = activeTab === 'doctors' ? item.avatar : item.image;
     setPreviewImage(img);
+    setSelectedFile(null); // Reset new file selection
     setIsFormOpen(true);
   };
 
   const handleAddNew = () => {
     setEditingItem(null);
     setPreviewImage(null);
+    setSelectedFile(null);
     setIsFormOpen(true);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setSelectedFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreviewImage(reader.result as string);
@@ -67,66 +81,141 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const uploadImageToSupabase = async (file: File): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+    // Tổ chức file vào thư mục theo loại (products/clinics/doctors)
+    const filePath = `${activeTab}/${fileName}`;
+
+    // 1. Thử upload trực tiếp
+    let { error: uploadError } = await supabase.storage
+      .from('resources') 
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    // Handle specific errors
+    if (uploadError) {
+       const errMsg = uploadError.message.toLowerCase();
+       
+       // Case 1: Bucket chưa có
+       if (errMsg.includes('bucket not found') || (uploadError as any).error === 'Bucket not found') {
+          console.warn("Bucket 'resources' missing. Attempting to create...");
+          const { error: createError } = await supabase.storage.createBucket('resources', {
+             public: true,
+             fileSizeLimit: 10485760, 
+             allowedMimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
+          });
+
+          if (createError) {
+             throw new Error("Lỗi: Bucket 'resources' chưa tồn tại. Hãy chạy SQL Script trong file services/supabase.ts để tạo.");
+          }
+
+          // Retry upload
+          const { error: retryError } = await supabase.storage.from('resources').upload(filePath, file, { upsert: true });
+          if (retryError) throw retryError;
+       } 
+       // Case 2: Lỗi quyền (RLS Policy) - Phổ biến nhất
+       else if (errMsg.includes('violates row-level security') || errMsg.includes('policy') || (uploadError as any).statusCode === '403') {
+          throw new Error("LỖI QUYỀN (RLS): Bạn chưa cấu hình Policy cho phép Upload. Hãy copy đoạn SQL trong file `services/supabase.ts` và chạy trong Supabase SQL Editor.");
+       }
+       // Other errors
+       else {
+          throw uploadError;
+       }
+    }
+
+    const { data } = supabase.storage.from('resources').getPublicUrl(filePath);
+    return data.publicUrl;
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
     const formData = new FormData(e.target as HTMLFormElement);
-    const id = editingItem ? editingItem.id : Math.random().toString(36).substr(2, 9);
+    const id = editingItem ? editingItem.id : crypto.randomUUID();
     
-    // Ensure we have an image (either new upload or existing)
-    const finalImage = previewImage || ''; 
-    if (!finalImage) {
-        alert("Vui lòng chọn hình ảnh!");
-        return;
-    }
-
-    if (activeTab === 'products') {
-      const newItem: Product = {
-        id,
-        name: formData.get('name') as string,
-        type: formData.get('type') as 'Round' | 'Anatomical',
-        description: formData.get('description') as string,
-        image: finalImage,
-        features: (formData.get('features') as string).split('\n').filter(s => s.trim())
-      };
+    try {
+      // 1. Handle Image
+      let finalImageUrl = previewImage || '';
       
-      const newList = editingItem 
-        ? products.map(p => p.id === id ? newItem : p) 
-        : [...products, newItem];
-      onUpdateProducts(newList);
+      if (selectedFile) {
+        // Upload new image to Supabase Storage
+        try {
+           finalImageUrl = await uploadImageToSupabase(selectedFile);
+        } catch (uploadErr: any) {
+           console.error("Upload error", uploadErr);
+           alert(uploadErr.message || "Lỗi upload ảnh. Vui lòng kiểm tra Storage Bucket.");
+           setIsSaving(false);
+           return;
+        }
+      }
 
-    } else if (activeTab === 'clinics') {
-      const newItem: Clinic = {
-        id,
-        name: formData.get('name') as string,
-        address: formData.get('address') as string,
-        rating: Number(formData.get('rating')),
-        image: finalImage,
-        features: (formData.get('features') as string).split('\n').filter(s => s.trim())
-      };
+      if (!finalImageUrl) {
+          alert("Vui lòng chọn hình ảnh!");
+          setIsSaving(false);
+          return;
+      }
 
-      const newList = editingItem 
-        ? clinics.map(c => c.id === id ? newItem : c) 
-        : [...clinics, newItem];
-      onUpdateClinics(newList);
+      // 2. Prepare Data & Upsert to DB
+      if (activeTab === 'products') {
+        const newItem: Product = {
+          id,
+          name: formData.get('name') as string,
+          type: formData.get('type') as 'Round' | 'Anatomical',
+          description: formData.get('description') as string,
+          image: finalImageUrl,
+          features: (formData.get('features') as string).split('\n').filter(s => s.trim())
+        };
+        
+        const { error } = await supabase.from('products').upsert(newItem);
+        if (error) throw error;
 
-    } else {
-      const newItem: Doctor = {
-        id,
-        name: formData.get('name') as string,
-        title: formData.get('title') as string,
-        hospital: formData.get('hospital') as string,
-        experience: formData.get('experience') as string,
-        rating: Number(formData.get('rating')),
-        avatar: finalImage,
-      };
+        const newList = editingItem ? products.map(p => p.id === id ? newItem : p) : [...products, newItem];
+        onUpdateProducts(newList);
 
-      const newList = editingItem 
-        ? doctors.map(d => d.id === id ? newItem : d) 
-        : [...doctors, newItem];
-      onUpdateDoctors(newList);
+      } else if (activeTab === 'clinics') {
+        const newItem: Clinic = {
+          id,
+          name: formData.get('name') as string,
+          address: formData.get('address') as string,
+          rating: Number(formData.get('rating')),
+          image: finalImageUrl,
+          features: (formData.get('features') as string).split('\n').filter(s => s.trim())
+        };
+
+        const { error } = await supabase.from('clinics').upsert(newItem);
+        if (error) throw error;
+
+        const newList = editingItem ? clinics.map(c => c.id === id ? newItem : c) : [...clinics, newItem];
+        onUpdateClinics(newList);
+
+      } else if (activeTab === 'doctors') {
+        const newItem: Doctor = {
+          id,
+          name: formData.get('name') as string,
+          title: formData.get('title') as string,
+          hospital: formData.get('hospital') as string,
+          experience: formData.get('experience') as string,
+          rating: Number(formData.get('rating')),
+          avatar: finalImageUrl,
+        };
+
+        const { error } = await supabase.from('doctors').upsert(newItem);
+        if (error) throw error;
+
+        const newList = editingItem ? doctors.map(d => d.id === id ? newItem : d) : [...doctors, newItem];
+        onUpdateDoctors(newList);
+      }
+
+      setIsFormOpen(false);
+    } catch (err: any) {
+      console.error("Save Error:", err);
+      alert(`Lỗi khi lưu dữ liệu: ${err.message}`);
+    } finally {
+      setIsSaving(false);
     }
-
-    setIsFormOpen(false);
   };
 
   return (
@@ -136,7 +225,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* Header */}
         <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
            <div>
-             <h1 className="text-2xl font-bold text-slate-900">Trang Quản Trị Hệ Thống</h1>
+             <h1 className="text-2xl font-bold text-slate-900">Trang Quản Trị (Supabase)</h1>
              <p className="text-slate-500">Quản lý dữ liệu sản phẩm, địa điểm và bác sĩ.</p>
            </div>
            <button 
@@ -150,24 +239,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* Content */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-h-[600px]">
            {/* Tabs */}
-           <div className="flex border-b border-slate-200 bg-slate-50/50">
+           <div className="flex border-b border-slate-200 bg-slate-50/50 overflow-x-auto">
              {['products', 'clinics', 'doctors'].map(tab => (
                <button
                  key={tab}
                  onClick={() => { setActiveTab(tab as any); setIsFormOpen(false); }}
-                 className={`flex-1 py-4 font-bold capitalize transition-all relative ${
+                 className={`flex-1 py-4 px-4 font-bold capitalize transition-all relative whitespace-nowrap ${
                    activeTab === tab 
                     ? 'text-orange-600 bg-white' 
                     : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                  }`}
                >
                  {activeTab === tab && <span className="absolute top-0 left-0 right-0 h-1 bg-orange-500"></span>}
-                 {tab === 'products' ? 'Túi ngực (Products)' : tab === 'clinics' ? 'Địa điểm (Clinics)' : 'Bác sĩ (Doctors)'}
+                 {tab === 'products' ? 'Túi ngực (Products)' : 
+                  tab === 'clinics' ? 'Địa điểm (Clinics)' : 
+                  'Bác sĩ (Doctors)'}
                </button>
              ))}
            </div>
 
-           {/* Toolbar */}
+           {/* Toolbar (Only show if form closed) */}
            {!isFormOpen && (
              <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white">
                <div className="font-semibold text-slate-700 pl-2">
@@ -259,12 +350,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                    (activeTab === 'clinics' && clinics.length === 0) || 
                    (activeTab === 'doctors' && doctors.length === 0)) && (
                     <div className="p-10 text-center text-slate-400">
-                      Chưa có dữ liệu nào. Nhấn "Thêm mới" để bắt đầu.
+                      Chưa có dữ liệu nào từ Supabase. Nhấn "Thêm mới" để bắt đầu.
                     </div>
                  )}
                </div>
              ) : (
                /* Edit Form */
+               isFormOpen && (
                <div className="p-6 md:p-8 bg-slate-50/50">
                  <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-800">
@@ -282,9 +374,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                        <label className="block text-sm font-bold text-slate-700">
                          {activeTab === 'doctors' ? 'Ảnh đại diện (Avatar)' : 'Hình ảnh mô tả'}
                        </label>
-                       <div className="flex flex-col sm:flex-row gap-6 items-start">
+                       
+                       <div 
+                         onClick={() => fileInputRef.current?.click()}
+                         className="flex flex-col sm:flex-row gap-6 items-center p-6 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-50 hover:border-orange-300 transition-all group"
+                       >
                          {/* Preview Box */}
-                         <div className={`relative flex-shrink-0 border-2 border-dashed border-slate-300 rounded-xl overflow-hidden flex items-center justify-center bg-slate-50 ${activeTab === 'doctors' ? 'w-32 h-32 rounded-full' : 'w-48 h-32'}`}>
+                         <div className={`relative flex-shrink-0 bg-white shadow-sm border border-slate-100 overflow-hidden flex items-center justify-center ${activeTab === 'doctors' ? 'w-32 h-32 rounded-full' : 'w-48 h-32 rounded-xl'}`}>
                            {previewImage ? (
                              <img 
                                src={previewImage} 
@@ -292,12 +388,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                className={`w-full h-full ${activeTab === 'products' ? 'object-contain p-2' : 'object-cover'}`} 
                              />
                            ) : (
-                             <span className="text-slate-400 text-xs text-center px-2">Chưa có ảnh</span>
+                             <div className="text-slate-300 flex flex-col items-center">
+                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10 mb-1">
+                                 <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a2.25 2.25 0 0 0 2.25-2.25V6a2.25 2.25 0 0 0-2.25-2.25H2.25A2.25 2.25 0 0 0 0 6v12a2.25 2.25 0 0 0 2.25 2.25Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                               </svg>
+                             </div>
                            )}
+                           
+                           {/* Hover Overlay */}
+                           <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/10 transition-colors flex items-center justify-center">
+                              <div className="bg-white/90 backdrop-blur rounded-full p-2 opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all shadow-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-slate-700">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+                                </svg>
+                              </div>
+                           </div>
                          </div>
 
-                         {/* Upload Button */}
-                         <div className="flex-1">
+                         {/* Upload Instructions */}
+                         <div className="flex-1 text-center sm:text-left">
                            <input 
                              type="file" 
                              ref={fileInputRef}
@@ -305,19 +415,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                              accept="image/*"
                              className="hidden"
                            />
-                           <button 
-                             type="button"
-                             onClick={() => fileInputRef.current?.click()}
-                             className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors mb-2"
-                           >
-                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-                             </svg>
+                           <h4 className="font-bold text-slate-700 group-hover:text-orange-600 transition-colors">
                              {previewImage ? 'Thay đổi hình ảnh' : 'Tải lên hình ảnh'}
-                           </button>
-                           <p className="text-xs text-slate-400">
-                             Hỗ trợ JPG, PNG. Dung lượng tối đa 5MB. 
-                             {activeTab === 'products' ? ' Khuyên dùng ảnh nền trong suốt.' : ''}
+                           </h4>
+                           <p className="text-sm text-slate-500 mt-1">
+                             Nhấn vào đây để chọn file từ thiết bị.
+                           </p>
+                           <p className="text-xs text-slate-400 mt-1">
+                             Hỗ trợ JPG, PNG (Max 5MB).
                            </p>
                          </div>
                        </div>
@@ -396,8 +501,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                      </div>
 
                      <div className="flex gap-4 pt-6 border-t border-slate-100">
-                        <button type="submit" className="flex-1 bg-orange-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-orange-700 shadow-lg shadow-orange-200 transition-all">
-                          {editingItem ? 'Lưu thay đổi' : 'Thêm mới'}
+                        <button 
+                          type="submit" 
+                          disabled={isSaving}
+                          className={`flex-1 bg-orange-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-orange-700 shadow-lg shadow-orange-200 transition-all ${isSaving ? 'opacity-70 cursor-wait' : ''}`}
+                        >
+                          {isSaving ? 'Đang lưu...' : (editingItem ? 'Lưu thay đổi' : 'Thêm mới')}
                         </button>
                         <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 bg-white border border-slate-200 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-50 transition-colors">
                           Hủy bỏ

@@ -42,6 +42,10 @@ export interface Doctor {
   hospital: string;
   avatar: string;
   rating: number;
+  // New detailed fields
+  bio?: string;
+  specialties?: string[];
+  certifications?: string[];
 }
 
 export interface Clinic {
@@ -51,6 +55,11 @@ export interface Clinic {
   image: string;
   rating: number;
   features: string[];
+  // New detailed fields
+  introduction?: string;
+  gallery?: string[];
+  phone?: string;
+  isPartner?: boolean;
 }
 
 export interface Product {
@@ -60,4 +69,7 @@ export interface Product {
   image: string;
   features: string[];
   type: 'Round' | 'Anatomical';
+  // New detailed fields
+  technology?: string[];
+  fullDescription?: string;
 }

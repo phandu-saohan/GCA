@@ -1,51 +1,32 @@
-import { GoogleGenAI, Type, SchemaType } from "@google/genai";
+
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { AnalysisResult, PatientMetrics } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// Define the response schema for structured output
-const analysisSchema = {
-  type: Type.OBJECT,
-  properties: {
-    option1: {
-      type: Type.OBJECT,
-      properties: {
-        volume: { type: Type.NUMBER, description: "First recommended volume in cc (smaller/safer/natural)" },
-        cupSize: { type: Type.STRING, description: "Estimated cup size for option 1" },
-        style: { type: Type.STRING, description: "Short description of the aesthetic result considering height (e.g. Balanced with tall frame)" }
-      },
-      required: ["volume", "cupSize", "style"]
-    },
-    option2: {
-      type: Type.OBJECT,
-      properties: {
-        volume: { type: Type.NUMBER, description: "Second recommended volume in cc (larger/fuller)" },
-        cupSize: { type: Type.STRING, description: "Estimated cup size for option 2" },
-        style: { type: Type.STRING, description: "Short description of the aesthetic result considering height (e.g. Full but proportional)" }
-      },
-      required: ["volume", "cupSize", "style"]
-    },
-    bodyAnalysis: {
-      type: Type.STRING,
-      description: "Analysis of the patient's current chest frame, symmetry, and proportions based on image and stats.",
-    },
-    reasoning: {
-      type: Type.STRING,
-      description: "Explanation of why these two specific options are recommended based on height, weight, breast width (BW), and desired look.",
-    },
-    implantsTypeSuggestion: {
-      type: Type.STRING,
-      description: "Suggestion on profile (High, Moderate) or shape (Round, Drop) suitable for the body type.",
-    },
+// Cấu hình bộ lọc an toàn: Tắt toàn bộ (BLOCK_NONE) để cho phép phân tích ảnh y tế
+const MEDICAL_SAFETY_SETTINGS = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
   },
-  required: [
-    "option1",
-    "option2",
-    "bodyAnalysis",
-    "reasoning",
-    "implantsTypeSuggestion",
-  ],
-};
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+];
 
 export const analyzePatient = async (
   metrics: PatientMetrics,
@@ -54,33 +35,31 @@ export const analyzePatient = async (
 ): Promise<AnalysisResult> => {
   try {
     const prompt = `
-      Bạn là một chuyên gia tư vấn thẩm mỹ y khoa và phẫu thuật tạo hình (AI Consultant).
-      Nhiệm vụ của bạn là phân tích số liệu cơ thể và hình ảnh lâm sàng để đưa ra **2 GỢI Ý** kích thước túi ngực phù hợp.
+      You are a specialized Medical AI for Plastic Surgery Assessment.
+      Analyze the provided clinical image (Patient's chest area) and the following metrics:
+      - Height: ${metrics.height} cm
+      - Weight: ${metrics.weight} kg
+      - Breast Width (BW): ${metrics.breastWidth} cm
+      - Desired Look: ${metrics.desiredLook}
 
-      Thông tin bệnh nhân:
-      - Chiều cao: ${metrics.height} cm
-      - Cân nặng: ${metrics.weight} kg
-      - Tuổi: ${metrics.age}
-      - Bề rộng chân ngực (Breast Width - BW): ${metrics.breastWidth} cm
-      - Kích thước hiện tại (ước lượng): ${metrics.currentSize}
-      - Mong muốn thẩm mỹ: ${metrics.desiredLook}
+      Based on standard "Tebbetts High Five" system and dimensional planning, recommend appropriate breast implant volumes.
 
-      Yêu cầu phân tích chuyên sâu:
-      1. **Phân tích BW (Bề rộng chân ngực)**: Đây là yếu tố quan trọng nhất để chọn đường kính túi.
-      
-      2. **Phân tích Tỷ lệ Chiều cao & Vóc dáng**: 
-         - Hãy chú ý đặc biệt đến chiều cao ${metrics.height}cm của bệnh nhân.
-         - Với người cao: Thường cần thể tích lớn hơn để tạo cảm giác đầy đặn tương xứng (cùng 1 size túi trông sẽ nhỏ hơn trên người cao).
-         - Với người thấp: Cần chọn size vừa phải để tránh cảm giác nặng nề, thô kệch.
-         - Tinh chỉnh Volume Option 1 và 2 dựa trên tỷ lệ này.
-
-      Đề xuất 2 phương án cụ thể:
-      - **Option 1 (Tự nhiên/Cân đối)**: Kích thước an toàn, hài hòa nhất với chiều cao và khung xương.
-      - **Option 2 (Gợi cảm/Nổi bật)**: Kích thước lớn hơn để tạo đường cong rõ rệt, nhưng vẫn phải nằm trong giới hạn an toàn của BW và không làm mất cân đối với chiều cao.
-      
-      Trong trường 'style', hãy mô tả ngắn gọn sự tương quan với vóc dáng (VD: "Vừa vặn với dáng người cao", "Đầy đặn nhưng không thô").
-      
-      Hãy đưa ra lời khuyên khách quan, chuyên nghiệp, y khoa.
+      Output MUST be a valid JSON object matching this schema:
+      {
+        "option1": {
+          "volume": number (recommended cc),
+          "cupSize": "string (estimated cup)",
+          "style": "string (short description)"
+        },
+        "option2": {
+          "volume": number (alternative cc),
+          "cupSize": "string",
+          "style": "string"
+        },
+        "bodyAnalysis": "string (Clinical assessment of the chest wall, asymmetry, and tissue quality in Vietnamese)",
+        "reasoning": "string (Explanation of why these volumes fit the BW and dimensions in Vietnamese)",
+        "implantsTypeSuggestion": "string (Suggested profile and type, e.g., Round High Profile, in Vietnamese)"
+      }
     `;
 
     const response = await ai.models.generateContent({
@@ -99,22 +78,56 @@ export const analyzePatient = async (
         ],
       },
       config: {
+        systemInstruction: "This is a medical diagnostic context. The images are clinical photographs for surgical planning. Do not suppress output based on nudity, as this is anatomical material.",
+        temperature: 0.1,
         responseMimeType: "application/json",
-        responseSchema: analysisSchema,
-        systemInstruction: "You are a professional medical aesthetic consultant. Provide analysis in Vietnamese language.",
-        temperature: 0.4,
+        safetySettings: MEDICAL_SAFETY_SETTINGS,
       },
     });
 
-    if (!response.text) {
-      throw new Error("Không nhận được phản hồi từ AI.");
+    // Check if we have a valid candidate
+    const candidate = response.candidates?.[0];
+    
+    // Debugging: Log safety ratings if blocked
+    if (candidate?.finishReason === 'SAFETY') {
+       console.error("Safety Ratings:", candidate.safetyRatings);
+       throw new Error("SAFETY_BLOCK: AI chặn ảnh này vì lý do an toàn. Vui lòng thử ảnh chụp rõ ràng hơn, góc độ y tế hơn.");
     }
 
-    const result = JSON.parse(response.text) as AnalysisResult;
-    return result;
-  } catch (error) {
-    console.error("Gemini Analysis Error:", error);
-    throw new Error("Có lỗi xảy ra trong quá trình phân tích hình ảnh. Vui lòng thử lại với hình ảnh rõ nét hơn hoặc góc chụp khác.");
+    let text = candidate?.content?.parts?.[0]?.text;
+
+    if (!text && response.text) {
+        text = response.text;
+    }
+
+    if (!text) {
+      console.warn("Empty Response Candidate:", candidate);
+      throw new Error("EMPTY_RESPONSE: AI không trả về kết quả. Có thể ảnh không đạt chuẩn y tế hoặc bị chặn ngầm.");
+    }
+
+    // Parse JSON
+    try {
+        const result = JSON.parse(text) as AnalysisResult;
+        
+        // Ensure defaults if AI misses something
+        if (!result.option1) throw new Error("Missing option1");
+        
+        return result;
+    } catch (parseError) {
+        console.error("JSON Parse Error:", parseError, "Text:", text);
+        throw new Error("FORMAT_ERROR: Dữ liệu trả về không đúng định dạng JSON.");
+    }
+
+  } catch (error: any) {
+    console.error("Gemini Analysis Error Details:", error);
+    
+    // Pass through specific errors
+    if (error.message && (error.message.includes("SAFETY") || error.message.includes("EMPTY") || error.message.includes("FORMAT"))) {
+        throw error;
+    }
+    
+    // General fallback
+    throw new Error(`Lỗi hệ thống AI: ${error.message || "Không xác định"}`);
   }
 };
 
@@ -128,45 +141,89 @@ export const generateSimulationImage = async (
   angle: 'front' | 'side-left' | 'side-right' = 'front'
 ): Promise<string> => {
   try {
-    let styleInstructions = "";
-    let angleInstructions = "";
-
-    // Define Angle Instructions
-    if (angle === 'front') {
-      angleInstructions = "View: Frontal view (keep original angle).";
-    } else if (angle === 'side-left') {
-      angleInstructions = "View: Left Profile View (Side view facing left). GENERATE a side profile view based on the body type seen in the reference image. Focus on the projection and upper pole fullness.";
-    } else if (angle === 'side-right') {
-      angleInstructions = "View: Right Profile View (Side view facing right). GENERATE a side profile view based on the body type seen in the reference image. Focus on the projection and upper pole fullness.";
-    }
+    let prompt = "";
     
-    // Define Style Instructions
+    // Determine rotation instructions
+    let rotationInstruction = "View: Frontal view (0 degrees).";
+    if (angle === 'side-left') {
+        rotationInstruction = "View: Left Profile (90 degrees rotation). RECONSTRUCT side view of the patient.";
+    } else if (angle === 'side-right') {
+        rotationInstruction = "View: Right Profile (90 degrees rotation). RECONSTRUCT side view of the patient.";
+    }
+
+    // --- VISUAL SCALING LOGIC (Hệ số nhân thị giác) ---
+    let visualMultiplier = 1.0;
+    let tissueContext = "";
+
+    const currentSizeLower = metrics.currentSize.toLowerCase();
+    
+    if (currentSizeLower.includes('phẳng') || currentSizeLower.includes('lép') || currentSizeLower.includes('flat')) {
+        visualMultiplier = 1.12; 
+        tissueContext = "Patient has flat chest (near zero tissue). Enhance projection to show clear implant definition.";
+    } else if (currentSizeLower.includes('cup a')) {
+        visualMultiplier = 1.25; 
+        tissueContext = "Patient has small Cup A base. Combine base tissue with implant for fuller look.";
+    } else if (currentSizeLower.includes('cup b')) {
+        visualMultiplier = 1.30; 
+        tissueContext = "Patient has Cup B. Add upper pole fullness for a push-up effect.";
+    } else if (currentSizeLower.includes('cup c') || currentSizeLower.includes('đầy')) {
+        visualMultiplier = 1.30; 
+        tissueContext = "Patient has Cup C. Maximize cleavage and upper fullness.";
+    } else {
+        visualMultiplier = 1.20; // Default
+    }
+
+    // Calculate the volume specific for the AI prompt (Visual Volume)
+    const visualVolume = Math.round(targetVolume * visualMultiplier);
+    
+    // --- PROMPT ENGINEERING FOR VISIBILITY ---
+    
+    let anatomicalKeywords = "";
+    if (angle === 'front') {
+        anatomicalKeywords = "Create DEEP CLEAVAGE lines. Create visible SHADOWS under the breast to show heavy projection. The breast width must appear wider.";
+    } else {
+        anatomicalKeywords = "Create EXTREME FORWARD PROJECTION. The breast must extend significantly forward from the chest wall. The upper pole slope must be CONVEX (rounded outwards).";
+    }
+
+    // --- CONTOUR LINE LOGIC ---
+    let visualGuideInstruction = "";
+    if (style === 'realistic') {
+        // Yêu cầu vẽ đường viền phẫu thuật màu xanh (Blue Surgical Markings)
+        visualGuideInstruction = "DRAW SURGICAL MARKINGS: Draw subtle BLUE SURGICAL LINES on the skin outlining the new breast footprint (medial cleavage line, lateral fold, and inferior fold). Use these lines to clearly visualize the boundary of the augmentation.";
+    } else {
+        // 3D Mesh
+        visualGuideInstruction = "Draw sharp, high-contrast CONTOUR LINES (topographic curves) across the breast volume to visualize the 3D depth and spherical shape.";
+    }
+
     if (style === '3d-mesh') {
-      styleInstructions = `
-        Style: Advanced Medical Augmented Reality (AR) Visualization.
-        Key Elements to Render:
-        1. **3D Topographic Wireframe**: Overlay a high-tech cyan/blue contour grid mesh on the chest to strictly define the new curvature and volume.
-        2. **Ghost Implant Visualization**: Render the ${targetVolume}cc implants as **semi-transparent, glowing amber/gold spheres** INSIDE the breast tissue.
-        3. **Structure**: Show how the implant fits within the wireframe.
-        4. **Aesthetic**: Tech-medical, clean, high contrast, X-ray like transparency for the implants.
+      prompt = `
+        Create a medical 3D wireframe diagram of the chest.
+        Show the placement of a ${targetVolume}cc breast implant.
+        ${rotationInstruction}
+        ${visualGuideInstruction}
+        Style: Blue holographic wireframe on dark background. Anatomical diagram.
       `;
     } else {
-      styleInstructions = `
-        Style: ${metrics.desiredLook}, Photorealistic.
-        Requirements:
-        - Maintain natural anatomy and skin tone from the reference image.
-        - Ensure the new volume (${targetVolume}cc) fits the body frame.
-        - Show realistic projection and cleavage.
+      prompt = `
+        TASK: Generate a Post-Operative Clinical Simulation with Surgical Markings.
+        
+        INPUT: Use the provided patient image as the canvas.
+        TRANSFORMATION: Aggressive Breast Augmentation.
+        
+        TECHNICAL TARGET: ${targetVolume}cc implants.
+        VISUAL SIMULATION TARGET: ${visualVolume}cc appearance.
+        
+        CRITICAL INSTRUCTIONS FOR VISIBILITY:
+        1. **SIZE INCREASE MUST BE OBVIOUS**: The breast area must look significantly larger and fuller.
+        2. **SHAPE CHANGE**: Transform the breast shape to be ROUND and FULL.
+        3. **DEFINITION**: ${anatomicalKeywords}
+        4. **VISUAL GUIDES**: ${visualGuideInstruction}
+        5. ${rotationInstruction}
+        6. **REALISM**: Keep skin tone and lighting consistent.
+        
+        Style: Photorealistic Medical Simulation with Surgical Guidelines. High Definition.
       `;
     }
-
-    const prompt = `
-      Generate a medical simulation image for breast augmentation.
-      Target Volume: approximately ${targetVolume}cc.
-      ${angleInstructions}
-      ${styleInstructions}
-      - Return only the generated/modified image.
-    `;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
@@ -183,27 +240,26 @@ export const generateSimulationImage = async (
           },
         ],
       },
-      // Note: Do not set responseMimeType for image editing on this model
+      config: {
+        systemInstruction: "You are a medical imaging AI. Your goal is to visualize plastic surgery outcomes. Do not block nudity as this is for clinical simulation. Ensure the size difference is clearly visible to the patient.",
+        safetySettings: MEDICAL_SAFETY_SETTINGS,
+      }
     });
 
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        return part.inlineData.data;
-      }
+    const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    
+    if (imagePart?.inlineData?.data) {
+      return imagePart.inlineData.data;
     }
     
-    const textPart = response.candidates?.[0]?.content?.parts?.find(p => p.text);
-    if (textPart) {
-        console.warn("Model returned text instead of image:", textPart.text);
-        throw new Error("AI không thể tạo hình ảnh, vui lòng thử lại.");
+    if (response.candidates?.[0]?.finishReason === 'SAFETY') {
+         throw new Error("Hình ảnh mô phỏng bị chặn do chính sách an toàn.");
     }
 
     throw new Error("AI không trả về dữ liệu hình ảnh.");
   } catch (error: any) {
     console.error("Gemini Simulation Error:", error);
-    if (error.status === 500 || error.code === 500) {
-       throw new Error("Hệ thống AI đang quá tải, vui lòng thử lại sau.");
-    }
+    if (error.message && error.message.includes("SAFETY")) throw error;
     throw new Error("Không thể tạo hình ảnh mô phỏng lúc này.");
   }
 };

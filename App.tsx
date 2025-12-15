@@ -7,12 +7,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { PatientMetrics, AnalysisResult, ProcessingState, VolumeOption, Product, Clinic, Doctor } from './types';
 import { analyzePatient, generateSimulationImage } from './services/geminiService';
 import { IMPLANT_PRODUCTS, REPUTABLE_CLINICS, REPUTABLE_DOCTORS } from './data/resources';
-
-// Mock User Type
-interface MockUser {
-  uid: string;
-  email: string;
-}
+import { supabase } from './services/supabase';
 
 // Define simulation state structure
 type SimulationAngles = {
@@ -44,16 +39,16 @@ const App: React.FC = () => {
   });
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   
-  // App Data State (Lifted up for Admin Management)
-  const [products, setProducts] = useState<Product[]>(IMPLANT_PRODUCTS);
-  const [clinics, setClinics] = useState<Clinic[]>(REPUTABLE_CLINICS);
-  const [doctors, setDoctors] = useState<Doctor[]>(REPUTABLE_DOCTORS);
+  // App Data State (Fetched from Supabase or Fallback)
+  const [products, setProducts] = useState<Product[]>([]);
+  const [clinics, setClinics] = useState<Clinic[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
   
   // Auth & View State
-  const [user, setUser] = useState<MockUser | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [viewMode, setViewMode] = useState<'client' | 'admin'>('client');
   
-  // State for simulation - now keyed by option
+  // State for simulation
   const [currentMetrics, setCurrentMetrics] = useState<PatientMetrics | null>(null);
   const [currentImageBase64, setCurrentImageBase64] = useState<string | null>(null);
   const [currentImageMime, setCurrentImageMime] = useState<string>('');
@@ -71,22 +66,71 @@ const App: React.FC = () => {
 
   // Login Modal State
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [loginSuccessMsg, setLoginSuccessMsg] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Listen for auth state changes (Mock)
-  useEffect(() => {
-    // Check local storage for persistent login session if needed
-    const storedUser = localStorage.getItem('mock_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-      setViewMode('admin');
+  // Fetch Data from Supabase
+  const fetchData = async () => {
+    try {
+      // Products
+      const { data: productsData, error: prodError } = await supabase.from('products').select('*');
+      if (!prodError && productsData && productsData.length > 0) {
+        setProducts(productsData);
+      } else {
+        setProducts(IMPLANT_PRODUCTS); // Fallback
+      }
+
+      // Clinics
+      const { data: clinicsData, error: clinicError } = await supabase.from('clinics').select('*');
+      if (!clinicError && clinicsData && clinicsData.length > 0) {
+        setClinics(clinicsData);
+      } else {
+        setClinics(REPUTABLE_CLINICS); // Fallback
+      }
+
+      // Doctors
+      const { data: doctorsData, error: docError } = await supabase.from('doctors').select('*');
+      if (!docError && doctorsData && doctorsData.length > 0) {
+        setDoctors(doctorsData);
+      } else {
+        setDoctors(REPUTABLE_DOCTORS); // Fallback
+      }
+    } catch (error) {
+      console.warn("Supabase fetch failed, using fallback data:", error);
+      // Fallback if connection fails entirely
+      setProducts(IMPLANT_PRODUCTS);
+      setClinics(REPUTABLE_CLINICS);
+      setDoctors(REPUTABLE_DOCTORS);
     }
+  };
+
+  // Auth & Initial Load Effect
+  useEffect(() => {
+    // Check active session with error handling
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!error && data?.session) {
+         setUser(data.session.user);
+         setViewMode('admin');
+      }
+    }).catch(err => {
+       console.warn("Auth check failed (likely offline/no config):", err);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (!session?.user) setViewMode('client');
+    });
+
+    fetchData();
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Helper to optimize image (resize & compress) to avoid payload limits/timeouts and 500 errors
+  // Helper to optimize image (resize & compress)
   const optimizeImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -94,11 +138,10 @@ const App: React.FC = () => {
       img.src = url;
       img.onload = () => {
         URL.revokeObjectURL(url);
-        const MAX_DIM = 1024; // Limit to 1024px for better API stability with Gemini 2.5 Flash Image
+        const MAX_DIM = 1024;
         let width = img.width;
         let height = img.height;
 
-        // Resize logic
         if (width > MAX_DIM || height > MAX_DIM) {
           const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
           width = Math.round(width * ratio);
@@ -114,14 +157,11 @@ const App: React.FC = () => {
           return;
         }
         
-        // Fill white background to handle potential transparency issues
         ctx.fillStyle = "#FFFFFF";
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
         
-        // Export as JPEG with 0.85 quality
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        // Remove data URL prefix
         resolve(dataUrl.split(',')[1]);
       };
       img.onerror = (error) => {
@@ -134,19 +174,16 @@ const App: React.FC = () => {
   const handleAnalysisSubmit = async (metrics: PatientMetrics, imageFile: File) => {
     setProcessingState({ isLoading: true, error: null, stage: 'analyzing' });
     setAnalysisResult(null);
-    setShowRecommendations(false); // Reset recommendations on new analysis
-    // Reset simulations on new analysis
+    setShowRecommendations(false);
     setSimulations({
       option1: JSON.parse(JSON.stringify(initialSimulationData)),
       option2: JSON.parse(JSON.stringify(initialSimulationData)),
     });
 
     try {
-      // Use optimized image for API calls to prevent 500 Internal Errors
       const base64Image = await optimizeImage(imageFile);
-      const mimeType = 'image/jpeg'; // Always JPEG after optimization
+      const mimeType = 'image/jpeg';
 
-      // Store for later use in simulation
       setCurrentImageBase64(base64Image);
       setCurrentImageMime(mimeType);
       setCurrentMetrics(metrics);
@@ -156,7 +193,6 @@ const App: React.FC = () => {
       setAnalysisResult(result);
       setProcessingState({ isLoading: false, error: null, stage: 'complete' });
       
-      // Scroll to top to see results
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
     } catch (err: any) {
@@ -179,7 +215,6 @@ const App: React.FC = () => {
 
     setIsGeneratingSimulation(true);
     
-    // Clear specific slot to indicate loading for that view
     setSimulations(prev => ({
       ...prev,
       [optionKey]: {
@@ -224,7 +259,6 @@ const App: React.FC = () => {
   const handleShowRecommendations = (volume: number) => {
     setSelectedVolumeForRec(volume);
     setShowRecommendations(true);
-    // Smooth scroll to recommendation section after slight delay to ensure render
     setTimeout(() => {
       document.getElementById('recommendation-hub')?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
@@ -240,33 +274,52 @@ const App: React.FC = () => {
     setProcessingState({ isLoading: false, error: null, stage: 'idle' });
   };
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
+    setLoginSuccessMsg('');
     setIsLoggingIn(true);
 
-    // Mock Login Logic
-    setTimeout(() => {
-      if (loginEmail === 'admin@impleo.com' && loginPassword === 'admin123') {
-        const mockUser = { uid: 'mock-123', email: loginEmail };
-        setUser(mockUser);
-        localStorage.setItem('mock_user', JSON.stringify(mockUser));
-        setViewMode('admin');
-        setIsLoginModalOpen(false);
+    try {
+      if (authMode === 'signup') {
+        // Cung cấp metadata mặc định để tránh lỗi Database Trigger nếu bảng profiles yêu cầu NOT NULL
+        const { error } = await supabase.auth.signUp({
+          email: loginEmail,
+          password: loginPassword,
+          options: {
+            data: {
+              full_name: loginEmail.split('@')[0], // Tên mặc định từ email
+              avatar_url: '', // Chuỗi rỗng thay vì null
+            }
+          }
+        });
+        if (error) throw error;
+        setLoginSuccessMsg('Đăng ký thành công! Vui lòng kiểm tra email để xác thực.');
       } else {
-        setLoginError('Email hoặc mật khẩu không chính xác (Thử: admin@impleo.com / admin123)');
+        const { error } = await supabase.auth.signInWithPassword({
+          email: loginEmail,
+          password: loginPassword,
+        });
+        if (error) throw error;
+        setIsLoginModalOpen(false);
       }
+    } catch (error: any) {
+      console.error("Auth Error:", error);
+      if (error.message && error.message.includes("Database error")) {
+        setLoginError('Lỗi cấu hình Database (Trigger). Vui lòng chạy lệnh SQL sửa lỗi trong file services/supabase.ts.');
+      } else {
+        setLoginError(error.message || 'Thao tác thất bại.');
+      }
+    } finally {
       setIsLoggingIn(false);
-    }, 1000);
+    }
   };
 
   const handleLogout = async () => {
-    setUser(null);
-    localStorage.removeItem('mock_user');
+    await supabase.auth.signOut();
     setViewMode('client');
   };
 
-  // Render Admin Dashboard
   if (viewMode === 'admin' && user) {
     return (
       <AdminDashboard
@@ -281,7 +334,6 @@ const App: React.FC = () => {
     );
   }
 
-  // Render Client App
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative">
       
@@ -321,7 +373,7 @@ const App: React.FC = () => {
                </button>
              ) : (
                <button
-                 onClick={() => setIsLoginModalOpen(true)}
+                 onClick={() => { setIsLoginModalOpen(true); setAuthMode('login'); }}
                  className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-orange-600 transition-colors bg-slate-100 hover:bg-orange-50 px-3 py-1.5 rounded-lg"
                >
                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
@@ -394,21 +446,33 @@ const App: React.FC = () => {
         <p className="mb-2">© 2024 IMPLEO By GC Aesthetics. Công cụ hỗ trợ tư vấn, không thay thế bác sĩ.</p>
       </footer>
 
-      {/* Login Modal */}
+      {/* Auth Modal */}
       {isLoginModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="p-6">
-                 <h3 className="text-xl font-bold text-slate-800 mb-2">Đăng nhập Quản trị</h3>
-                 <p className="text-sm text-slate-500 mb-6">Sử dụng tài khoản quản trị nội bộ.</p>
-                 
-                 <div className="bg-blue-50 p-3 rounded-lg mb-4 text-xs text-blue-800 border border-blue-100">
-                    <p><strong>Demo Account:</strong></p>
-                    <p>Email: admin@impleo.com</p>
-                    <p>Pass: admin123</p>
+                 {/* Tabs */}
+                 <div className="flex border-b border-slate-100 mb-6">
+                    <button
+                      onClick={() => { setAuthMode('login'); setLoginError(''); setLoginSuccessMsg(''); }}
+                      className={`flex-1 pb-2 text-sm font-bold border-b-2 transition-colors ${authMode === 'login' ? 'text-orange-600 border-orange-600' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+                    >
+                      Đăng nhập
+                    </button>
+                    <button
+                      onClick={() => { setAuthMode('signup'); setLoginError(''); setLoginSuccessMsg(''); }}
+                      className={`flex-1 pb-2 text-sm font-bold border-b-2 transition-colors ${authMode === 'signup' ? 'text-orange-600 border-orange-600' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+                    >
+                      Đăng ký
+                    </button>
                  </div>
+
+                 <h3 className="text-xl font-bold text-slate-800 mb-2">
+                   {authMode === 'login' ? 'Đăng nhập Quản trị' : 'Tạo tài khoản mới'}
+                 </h3>
+                 <p className="text-sm text-slate-500 mb-6">Sử dụng tài khoản Supabase Auth.</p>
                  
-                 <form onSubmit={handleLoginSubmit} className="space-y-4">
+                 <form onSubmit={handleAuthSubmit} className="space-y-4">
                     <div>
                       <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Email</label>
                       <input 
@@ -419,8 +483,6 @@ const App: React.FC = () => {
                            setLoginError('');
                          }}
                          className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
-                         placeholder="admin@impleo.com"
-                         autoFocus
                          required
                       />
                     </div>
@@ -435,7 +497,6 @@ const App: React.FC = () => {
                            setLoginError('');
                          }}
                          className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
-                         placeholder="••••••••"
                          required
                       />
                       {loginError && <p className="text-red-500 text-xs mt-2 font-medium flex items-center gap-1">
@@ -443,6 +504,12 @@ const App: React.FC = () => {
                           <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                         </svg>
                         {loginError}
+                      </p>}
+                      {loginSuccessMsg && <p className="text-green-600 text-xs mt-2 font-medium flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        {loginSuccessMsg}
                       </p>}
                     </div>
                     
@@ -458,7 +525,7 @@ const App: React.FC = () => {
                          className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors"
                          disabled={isLoggingIn}
                        >
-                         Hủy
+                         Đóng
                        </button>
                        <button 
                          type="submit" 
@@ -466,13 +533,10 @@ const App: React.FC = () => {
                          disabled={isLoggingIn}
                        >
                          {isLoggingIn && <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
-                         Đăng nhập
+                         {authMode === 'login' ? 'Đăng nhập' : 'Đăng ký'}
                        </button>
                     </div>
                  </form>
-              </div>
-              <div className="bg-slate-50 p-3 text-center border-t border-slate-100">
-                 <p className="text-xs text-slate-400">GC Aesthetics Secure System</p>
               </div>
            </div>
         </div>
